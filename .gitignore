@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Swift Package Manager
+/.build
+/Packages
+.swiftpm/
+# Package.resolved is intentionally committed: this is an executable app, so we
+# lock dependency versions for reproducible builds.
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
+
+# Editors
+.vscode/
+
+# Misc
+.netrc
+
+# Benchmarks (package-benchmark)
+.benchmarkBaselines/
+Benchmarks/.build/
+Benchmarks/Package.resolved
