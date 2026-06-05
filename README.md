@@ -65,20 +65,27 @@ swift package --disable-sandbox benchmark
 the measured work is tokenization + the BNNSGraph forward pass + pooling.
 
 On Apple silicon, single-sentence encode latency (`all-MiniLM-L6-v2`) is roughly
-**~1.3 ms** (p50). Compared to an equivalent CPU
+**~1.3 ms** (p50). For context, here it is next to an equivalent
 [`MLTensor`](https://github.com/jkrukowski/swift-embeddings) implementation
-benchmarked on the same machine (same model, same sentence), the BNNSGraph path
-is **well over 10× faster** and allocates **~180× less**:
+benchmarked on the same machine (same model, same sentence). `MLTensor` is shown
+in two configurations: `.cpuOnly`, and its default `.cpuAndGPU` (for this tiny
+workload the GPU dispatch overhead makes the default markedly slower):
 
-| Metric (p50)           | BNNSGraph | MLTensor (CPU) |
-| ---------------------- | --------: | -------------: |
-| Encode time (wall)     |   ~1.3 ms |         ~19 ms |
-| Throughput             |  ~750 / s |        ~52 / s |
-| Malloc (total)         |       387 |        ~71,000 |
-| Memory (resident peak) |    143 MB |         236 MB |
+| Metric (p50)           | BNNSGraph | MLTensor (`.cpuOnly`) | MLTensor (`.cpuAndGPU`, default) |
+| ---------------------- | --------: | --------------------: | -------------------------------: |
+| Encode time (wall)     |   ~1.3 ms |               ~3.7 ms |                           ~18 ms |
+| Throughput             |  ~760 / s |              ~270 / s |                          ~54 / s |
+| Malloc (total)         |       387 |               ~16,000 |                          ~71,000 |
+| Memory (resident peak) |   ~140 MB |               ~144 MB |                          ~239 MB |
 
-Exact multipliers vary by host and OS version; the takeaway is the order of
-magnitude, not the precise number.
+Against a true **CPU-to-CPU** baseline (`MLTensor` `.cpuOnly`), BNNSGraph is
+roughly **~2.8× faster** and allocates **~40× less**, at comparable resident
+memory. The gap widens dramatically against `MLTensor`'s default `.cpuAndGPU`
+policy, but that mostly reflects GPU-dispatch overhead on a sub-millisecond
+workload rather than a like-for-like CPU comparison.
+
+Exact multipliers vary by host and OS version; the takeaway is the direction,
+not the precise number.
 
 ## Code Formatting
 

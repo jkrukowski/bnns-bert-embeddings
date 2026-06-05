@@ -267,18 +267,19 @@ private func encoderBlock(
         bias: b.constant("\(p).attention.self.value.bias", from: weights)
     )
 
-    // Per-head scaled dot-product attention (slice the static hidden axis).
-    let scale = 1.0 / Float(config.headDim).squareRoot()
-    var heads = [BNNSGraph.Builder.Tensor<Float>]()
-    for i in 0..<config.numAttentionHeads {
-        let qh = q.head(i, dim: config.headDim)
-        let kh = k.head(i, dim: config.headDim)
-        let vh = v.head(i, dim: config.headDim)
-        let scores = qh.matmul(other: kh, transposeOther: true) * scale  // [1, S, S]
-        let probs = scores.softmax(axis: 2)
-        heads.append(probs.matmul(other: vh))  // [1, S, headDim]
-    }
-    let merged = b.concatenate(heads, axis: 2)  // [1, S, hidden]
+    // Batched multi-head scaled dot-product attention.
+    // Reshape [1, S, hidden] -> [1, S, H, D] -> transpose -> [1, H, S, D] and
+    // run a single batched matmul over the head axis instead of per-head slices.
+    let H = config.numAttentionHeads
+    let D = config.headDim
+    let scale = 1.0 / Float(D).squareRoot()
+    let qh = q.reshape(to: [1, -1, H, D]).transpose(axes: [0, 2, 1, 3])  // [1, H, S, D]
+    let kh = k.reshape(to: [1, -1, H, D]).transpose(axes: [0, 2, 1, 3])
+    let vh = v.reshape(to: [1, -1, H, D]).transpose(axes: [0, 2, 1, 3])
+    let scores = qh.matmul(other: kh, transposeOther: true) * scale  // [1, H, S, S]
+    let probs = scores.softmax(axis: 3)
+    let ctx = probs.matmul(other: vh)  // [1, H, S, D]
+    let merged = ctx.transpose(axes: [0, 2, 1, 3]).reshape(to: [1, -1, H * D])  // [1, S, hidden]
 
     // Output projection + residual + LayerNorm
     let attnOut = merged.linear(
